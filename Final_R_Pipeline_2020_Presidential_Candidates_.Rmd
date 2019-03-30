@@ -1,0 +1,478 @@
+---
+title: "Analysis of the US 2020 Presidential Election Candidates' Received Attention on Twitter"
+authors: "Hongfeng Ai, Jennifer Crawford, Israel Liori and Ida Johanne Austad"
+date: "March 2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+#  Introduction: Social media analytics pipeline implemented in R
+This document is the R-pipeline which produced the results for the paper "Analysis of the US 2020 Presidential Election Candidates' Received Attention on Twitter" as a part of the module COM61332 Text Mining at University of Manchester Spring 2019. It is one of the attachments for the final report, alongside the extracted datasets, which describe how the analysis has been produced.
+
+Table of contents:
+1. Download data from candidates' timelines
+2. Based on data from timeline search: Calculate average number of Favourites and retweets on each candidates' posts
+3. Download keyword search data on each candidate
+4. Clean keyword data to prepare Sentiment Polarity Analysis
+5. Perform Sentiment Polarity Analysis
+6. Clean keyword data to prepare for Emotion Detection Analysis
+7. Perform Emotion Detection Analysis
+
+## 1. Download data from candidates' timelines
+Timeline Search on each candidate was performed to study the responses of the public on the tweets posted by candidates themselves. the 6 selected candidates' timelines where searced according the user name chosen for the analysis (the user name which the candidates used for the presidential campaign activities). The timeline data is stored as .RData-files. Each candidates` file is named as <candidatename>_timeline.RData such as Trump_timeline.RData and can be found amongst the attachments to the report. RData file can be imported into the Rstudio as a variable. The selected time period for the search was from 1st of Jan. 2019 up until the date the search was performed (see below). Timeline data on all candidates were extracted on the same date.
+
+The following Twitter user names was used in the timeline search:
+- "KamalaHarris" 
+- "eWarren"
+- "BernieSanders" 
+- "JulianCastro" 
+- "AOC" 
+- "realDonaldTrump" 
+
+Notice: The date of scraping the timelines: 06/03/2019  16:28
+```{r, include=FALSE}
+options(warn=-1)
+
+#import necessary libraries
+library(ROAuth)
+library(rtweet)
+library(dplyr) 
+library(ggplot2)
+library(forcats)
+library(twitteR)
+library(tm)
+library(wordcloud)
+library(plyr)
+library(stringr)
+library(scales)
+library(RColorBrewer)
+library(igraph)
+library(syuzhet)
+library(plotly)
+library(fmsb)
+```
+
+Authenticate and access Twitter API (actual tokens have been left out due to privacy)
+```{r}
+# authenticate with Twitter
+consumerKey<-	"xxx"
+consumerSecret<-"xxx"
+
+accessToken<-"xxx"
+accessSecret<-"xxx"
+
+setup_twitter_oauth (consumerKey, consumerSecret, accessToken, accessSecret)  # authenticate
+
+# insert the consumer key and consumer secret from twitter
+create_token(
+     consumer_key = "xxx",
+     consumer_secret = "xxx"
+)
+```
+
+Scape the latest 700 timeline tweets and manually gain the timelines after 1st January, 2019. Then save them as .RData file.
+```{r, eval=FALSE}
+# replace with the target user screen name or ID
+Trump_timeline<-get_timeline("realDonaldTrump",n=700)
+Bernie_timeline<-get_timeline("BernieSanders",n=700)
+Julian_timeline<-get_timeline("JulianCastro",n=700)
+Kamala_timeline<-get_timeline("KamalaHarris",n=700)
+eWarren_timeline<-get_timeline("eWarren",n=700)
+AOC_timeline<-get_timeline("AOC",n=850)
+
+# only get the data after 1 Jan 2019
+Trump_timeline <- Trump_timeline[1:677,]
+Bernie_timeline <- Bernie_timeline[1:295,]
+Julian_timeline <- Julian_timeline[1:493,]
+Kamala_timeline <- Kamala_timeline[1:610,]
+eWarren_timeline <- eWarren_timeline[1:466,]
+AOC_timeline <- AOC_timeline[1:891,]
+
+# save to .RData file (files can be found in the attchments)
+save(Trump_timeline, file = "Trump_timeline.RData")
+save(Bernie_timeline, file = "Bernie_timeline.RData")
+save(Julian_timeline, file = "Julian_timeline.RData")
+save(Kamala_timeline, file = "Kamala_timeline.RData")
+save(eWarren_timeline, file = "eWarren_timeline.RData")
+save(AOC_timeline, file = "AOC_timeline.RData")
+```
+
+## 2. Calculate average number of Favourites and Retweets on each candidates' posts
+To answer one of the reserach question in the analysis - the average number of retweets and Favourites per post on the candidates timeline was calculated. The pipeline is described below by using Donald Trump as an example, the same pipeline was used for each candidate's timeline data.
+
+```{r}
+
+# Firstly, import the Timeline.RData dataset into RStudio
+load("Trump_timeline.RData" )
+load( "Kamala_timeline.RData" )
+load( "Julian_timeline.RData")
+load( "eWarren_timeline.RData")
+load( "Bernie_timeline.RData" )
+load( "AOC_timeline.RData")
+```
+
+There are three types of tweets.
+
+Conditional Filters:
+ - Original Post:             is_quote==FALSE & is_retweet==FALSE
+ - Retweet without comment:   is_quote==FALSE & is_retweet==TRUE
+ - Retweet with comment:      is_quote==TRUE & is_retweet==FALSE
+
+The below code calcuate the number of each type of tweet.
+```{r, eval=FALSE}
+
+# the average number of favorites on the different types of tweets received
+print("the average number of favorites that Trump received:")
+print(paste("Original Post:",mean(subset(Trump_timeline, is_quote==FALSE & is_retweet==FALSE)$favorite_count)))
+print(paste("retweet without comment:",mean(subset(Trump_timeline, is_quote==FALSE & is_retweet==TRUE)$favorite_count)))
+print(paste("retweet with comment:",mean(subset(Trump_timeline, is_quote==TRUE & is_retweet==FALSE)$favorite_count)))
+print(paste("Total average:",mean(subset(Trump_timeline, is_retweet==FALSE)$favorite_count)))
+
+```
+
+Calculate the average number of favorites on the different types of tweets received.
+```{r, eval=FALSE}
+# the average number of favorites on the different types of tweets received
+print("the average number of favorites that Trump received:")
+print(paste("Original Post:",mean(subset(Trump_timeline, is_quote==FALSE & is_retweet==FALSE)$favorite_count)))
+print(paste("retweet without comment:",mean(subset(Trump_timeline, is_quote==FALSE & is_retweet==TRUE)$favorite_count)))
+print(paste("retweet with comment:",mean(subset(Trump_timeline, is_quote==TRUE & is_retweet==FALSE)$favorite_count)))
+print(paste("Total average:",mean(subset(Trump_timeline, is_retweet==FALSE)$favorite_count)))
+
+```
+
+calculate the average number of retweets on the different types of tweets received.
+```{r,eval=FALSE}
+# the average number of retweets on the different types of tweets received
+print("the average number of retweets that Trump received:")
+print(paste("Original Post:",mean(subset(Trump_timeline, is_quote==FALSE & is_retweet==FALSE)$retweet_count)))
+print(paste("retweet without comment:",mean(subset(Trump_timeline, is_quote==FALSE & is_retweet==TRUE)$retweet_count)))
+print(paste("retweet with comment:",mean(subset(Trump_timeline, is_quote==TRUE & is_retweet==FALSE)$retweet_count)))
+print(paste("Total average:",mean(subset(Trump_timeline, is_retweet==FALSE)$retweet_count)))
+```
+
+##  3. Download keyword search data on each candidate
+This section describes how tweets were extracted using keywork search. The objective of the search and extraction was to extract tweets which mentioned the candidates which where included in our analysis. The keyword search data was relevant to perform the Sentiment Polarity analysis and the Emotion Detection Analysis (will be described in later sections). The list below describe the keywords used to extract the desired Tweets.
+
+Keywords used for the different candidates:
+- "Kamala Harris+KamalaHarris" 
+- "Elizabeth Warren+eWarren"
+- "Bernie Sanders+BernieSanders" 
+- "Julian Castro+JulianCastro" 
+- "Ocasio-Cortez+AOC" 
+- "Donald Trump+realDonaldTrump" 
+
+### Connecting to the Twitter API
+```{r setup, include=FALSE}
+
+# remember to install necessary packages (if not done in the beginning)
+install.packages("rTweet")
+install.packages("ROAuth")
+library(ROAuth)
+library(rtweet)
+
+# authenticate with Twitter (keys not included due to provacy)
+consumerKey<-	"xxx"
+consumerSecret<-"xxx"
+
+accessToken<-"xxx"
+accessSecret<-"xxx"
+
+setup_twitter_oauth (consumerKey, consumerSecret, accessToken, accessSecret)  # authenticate
+
+```
+
+### Using rTweet package to get entire tweets (not truncated)
+This section shows how the keyword data was extracted and the parameters used. For each candidate (here we use Donald Trump as an example) the routines below where run, resulting in the following csv-files:
+- Trump_keyword.csv
+- Sanders_keyword.csv
+- Ocasio_Cortez_keyword.csv
+- Harris_keyword.csv
+- Warren_Keyword.csv
+- Castro_keyword.csv
+All can be found amongst the attchments.
+
+Notice: The date of scraping the keyword data: 06/03/2019  
+```{r setup, include=FALSE}
+library(rtweet)
+
+#using rtweet library to get tweets by keyword with the entire text
+l <- search_tweets("Donald Trump+realDonaldTrump", n = 10000, type = "mixed", max_id = NULL, parse = TRUE, token = NULL, verbose = TRUE)
+
+#convert to dataframe
+df2 <- as.data.frame(l)
+
+#keep only columns we are gonna use in the analysis
+keeps <- c("user_id","created_at", "screen_name", "text", "is_retweet", "lang")
+df2 <- subset(df2, select = keeps)
+
+#count number and percentage of retweets extracted
+count_retweets = sum(df2["is_retweet"] == TRUE)
+portion_retweets = count_retweets/nrow(df2["is_retweet"] )
+portion_retweets
+
+# convert to be able to write to csv
+df2 <- apply(df2,2,as.character) 
+
+# write out to a CSV file
+write.csv(df2, file="Trump_keyword.csv")
+
+```
+
+## 4. Clean keyword data to prepare Sentiment Polarity Analysis (excluding retweets)
+This section documents the steps taken for cleaning the Tweets resulting from the keyword search to prepare for the Sentiment Polarity analysis, not including retweets. The following cleaning steps were applied
+- Filter out tweets not written in English (as we are using an English Lexicon to analyse sentiment)
+- Filter out tweets which where retweets (a column in the dataset)
+- Other normal cleaning: lowercase, punctuation, digits, links etc.
+- After a manual investigation of a sample of ~15 tweets from the extracted data it was decided to not not filter out tweets which include "Donald Trump Jr", as all of these cases in the sample were also directed towards Donald Trump as well (by using @realDonalTrump or by mentioning him as well as his son). Investigating the other candidates' tweets to see if there seemed to be tweets which were not directed towards them, but other subjects with similar or the same name resulted in the conclusion that this was not an issue as no such cases where found. 
+
+The process below had to be performed for each candidates' dataset.
+```{r setup, include=FALSE}
+#loading the libraries (if not done above)
+library(plyr)
+library(stringr)
+library(ggplot2)
+library(tm)
+library(scales)
+library(dplyr)
+
+#import file to be cleaned and file 
+file<-read.csv("Ocasio_Cortez_keyword.csv")
+
+#extract only columns where the language is english and which are not retweets
+result <- filter(file, lang == "en" & is_retweet == "FALSE")
+
+#choose the text column,  edit text to lowecase and ensure correct coding
+tweets.df<-result$text
+tweets.df<-tolower(tweets.df)
+tweets.df <- sapply(tweets.df,function(row) iconv(row, "latin1", "ASCII", sub=""))
+tweets.df = gsub("&amp", "", tweets.df) # remove &amp
+tweets.df = gsub("@\\w+", "", tweets.df) # remove at people
+tweets.df= gsub("[[:punct:]]", "", tweets.df) # remove punctuation
+tweets.df = gsub("[[:digit:]]", "", tweets.df) # remove numbers
+tweets.df = gsub("http\\w+", "", tweets.df) # remove html links
+# remove unnecessary spaces
+tweets.df = gsub("[ \t]{2,}", "", tweets.df)
+tweets.df= gsub("^\\s+|\\s+$", "", tweets.df)
+
+#save cleaned data as csv
+write.csv(tweets.df, file="Ocasio_Cortez_keyword_clean_NOretweets.csv")
+
+```
+## 5. Perform Sentiment Polarity Analysis (excluding retweets)
+This section performs a sentiment polarity analysis on the extracted data from the keyword search for each candidate, not including the retweets. 
+
+The process below had to be performed for each candidates dataset.
+```{r setup, include=FALSE}
+
+library(plyr)
+library(stringr)
+library(ggplot2)
+library(tm)
+library(scales)
+
+#read clean data with retweets
+spa_retweet <-read.csv("Ocasio_Cortez_keyword_clean_NOretweets.csv")
+tweets.df<-spa_retweet$x
+
+
+#Reading the Lexicon positive and negative words
+pos <- readLines("positive_words.txt")
+neg <- readLines("negative_words.txt")
+
+#function to calculate sentiment score
+score.sentiment <- function(sentences, pos.words, neg.words, .progress='none')
+{
+  # Parameters
+  # sentences: vector of text to score
+  # pos.words: vector of words of postive sentiment
+  # neg.words: vector of words of negative sentiment
+  # .progress: passed to laply() to control of progress bar
+  
+  # create simple array of scores with laply
+  scores <- laply(sentences,
+                  function(sentence, pos.words, neg.words)
+                  {
+                    # remove punctuation
+                    sentence <- gsub("[[:punct:]]", "", sentence)
+                    # remove control characters
+                    sentence <- gsub("[[:cntrl:]]", "", sentence)
+                    # remove digits
+                    sentence <- gsub('\\d+', '', sentence)
+                    
+                    #convert to lower
+                    sentence <- tolower(sentence)
+                    
+                    
+                    # split sentence into words with str_split (stringr package)
+                    word.list <- str_split(sentence, "\\s+")
+                    words <- unlist(word.list)
+                    
+                    # compare words to the dictionaries of positive & negative terms
+                    pos.matches <- match(words, pos)
+                    neg.matches <- match(words, neg)
+                    
+                    # get the position of the matched term or NA
+                    # we just want a TRUE/FALSE
+                    pos.matches <- !is.na(pos.matches)
+                    neg.matches <- !is.na(neg.matches)
+                    
+                    # final score
+                    score <- sum(pos.matches) - sum(neg.matches)
+                    return(score)
+                  }, pos.words, neg.words, .progress=.progress )
+  # data frame with scores for each sentence
+  scores.df <- data.frame(text=sentences, score=scores)
+  return(scores.df)
+}
+#sentiment score
+scores_twitter <- score.sentiment(tweets.df, pos.txt, neg.txt, .progress='text')
+
+
+View(scores_twitter)
+
+#Summary of the sentiment scores
+summary(scores_twitter)
+
+scores_twitter$score_chr <- ifelse(scores_twitter$score < 0,'Negative', ifelse(scores_twitter$score > 0, 'Positive', 'Neutral'))
+
+
+View(scores_twitter)
+
+
+#Convert score_chr to factor for visualizations
+scores_twitter$score_chr <- as.factor(scores_twitter$score_chr)
+names(scores_twitter)[3]<-paste("Sentiment")  
+
+#plot to show number of negative, positive and neutral comments
+Viz1 <- ggplot(scores_twitter, aes(x=Sentiment, fill=Sentiment))+ geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels = percent)+labs(y="Score")+
+  theme(text =element_text(size=15))+theme(axis.text = element_text(size=15))+ theme(legend.position="none")+ coord_cartesian(ylim=c(0,0.6)) + scale_fill_manual(values=c("firebrick1", "grey50", "limeGREEN"))
+Viz1 + ggtitle("Ocasio-Cortez Sentiment Polarity (without retweets) ") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+## 6. Clean keyword data to prepare for Emotion Detection Analysis
+Below, the data from the keyword search is loaded and cleaned to prepare for the Emotion Detection analysis.
+
+```{r}
+
+# start by import csv data
+# isretweet: 0-import all, 1-only retweet, 2-exclude retweet
+import_data <- function(csv_file, isretweet){
+     file <- read.csv(csv_file)
+     if (isretweet == 0){
+          keyword <- filter(file, lang == "en")
+     }else if (isretweet == 1){
+          keyword <- filter(file, lang == "en" & is_retweet != "FALSE")
+     }else if (isretweet == 2){
+          keyword <- filter(file, lang == "en" & is_retweet == "FALSE")
+     }
+     return(keyword)
+}
+
+Trump_keyword <- import_data("Trump_keyword.csv", 2)
+Julian_keyword <- import_data("Castro_keyword.csv", 2)
+Kamala_keyword <- import_data("Harris_keyword.csv", 2)
+AOC_keyword <- import_data("Ocasio_Cortez_keyword.csv", 2)
+Bernie_keyword <- import_data("Sanders_keyword.csv", 2)
+eWarren_keyword <- import_data("Warren_keyword.csv", 2)
+
+# clean the text
+clean_tweets_func <- function(DATASET){
+     clean_tweets = DATASET$text
+     # remove retweet entities
+     clean_tweets = gsub('(RT|via)((?:\\b\\W*@\\w+)+)', '', clean_tweets)
+     # remove at people
+     clean_tweets = gsub('@\\w+', '', clean_tweets)
+     # remove punctuation
+     clean_tweets = gsub('[[:punct:]]', '', clean_tweets)
+     # remove numbers
+     clean_tweets = gsub('[[:digit:]]', '', clean_tweets)
+     # remove html links
+     clean_tweets = gsub('http\\w+', '', clean_tweets)
+     # remove unnecessary spaces
+     clean_tweets = gsub('[ \t]{2,}', '', clean_tweets)
+     clean_tweets = gsub('^\\s+|\\s+$', '', clean_tweets)
+     # remove emojis or special characters
+     clean_tweets = gsub('<.*>', '', enc2native(clean_tweets))
+     # lowercase
+     clean_tweets = tolower(clean_tweets)
+     return(clean_tweets)
+}
+
+```
+## 7. Perform Emotion Detection Analysis
+This section describes the pipeline used to perform the Emotion Detection analysis. The NRC emotion lexicon is used to detect emotions in text. The negative and positive (sentiment polarity) detection are removed and only the eight emotions (trust, anticipation, sadness, joy, anger, fear, surprise and disgust) are included. The percentage of each emotions is calculated per candidate.
+
+```{r}
+
+# Count emotion
+emotion_pert_func <- function(keyword_data, NAME){
+     clean_tweets = clean_tweets_func(keyword_data)
+     emotions<- get_nrc_sentiment(clean_tweets)
+     emo_bar = colSums(emotions)
+     emo_sum = data.frame(count=emo_bar, emotion=names(emo_bar))
+     emo_sum$emotion = factor(emo_sum$emotion, levels=emo_sum$emotion[order(emo_sum$count, decreasing = TRUE)])
+     emo_sum <- emo_sum[1:8,]
+     emo_sum$percent<-(emo_sum$count/sum(emo_sum$count))*100
+     
+     emo_pert = t(emo_sum$percent)
+     row.names(emo_pert) <- NAME
+     colnames(emo_pert) <-emo_sum$emotion
+     return (emo_pert)
+}
+
+Trump_emo_pert = emotion_pert_func(Trump_keyword, "Donald Trump")
+Bernie_emo_pert = emotion_pert_func(Bernie_keyword, "Bernie Sanders")
+Julian_emo_pert = emotion_pert_func(Julian_keyword, "Julian Castro")
+Kamala_emo_pert = emotion_pert_func(Kamala_keyword, "Kamala Harris")
+Elizabeth_emo_pert = emotion_pert_func(eWarren_keyword, "Elizabeth Warren")
+AOC_emo_pert = emotion_pert_func(AOC_keyword, "Alexandria Ocasio-Cortez")
+
+# if we plot all six candidates togethere, then the graph will looks messy, so we separate them into two graphs of 3 candidates 
+comp_emo_df1 <- rbind(Trump_emo_pert, Kamala_emo_pert, AOC_emo_pert)
+comp_emo_df2 <- rbind(Bernie_emo_pert, Julian_emo_pert, Elizabeth_emo_pert)
+
+# convert to data.frame type
+comp_emo_df1 <- as.data.frame(comp_emo_df1)
+comp_emo_df2 <- as.data.frame(comp_emo_df2)
+
+# To use the fmsb package, I have to add 2 lines to the dataframe: the max and min of each topic to show on the plot!
+comp_emo_df1 = rbind(rep(30,5) , rep(0,5) , comp_emo_df1)
+comp_emo_df2 = rbind(rep(30,5) , rep(0,5) , comp_emo_df2)
+
+# radarchart with custom features
+colors_border=c( rgb(0.2,0.5,0.5,0.9), rgb(0.8,0.2,0.5,0.9) , rgb(0.2,0.2,0.5,0.9) )
+colors_in=c( rgb(0.2,0.5,0.5,0.4), rgb(0.8,0.2,0.5,0.4) , rgb(0.2,0.2,0.5,0.4) )
+radarchart( comp_emo_df1  , axistype=1 , 
+            #custom polygon
+            pcol=colors_border , pfcol=colors_in , plwd=1 , plty=1,
+            #custom the grid
+            cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,20,5), cglwd=0.8,
+            #custom labels
+            vlcex=0.8 
+)
+legend(x=0.7, y=1, legend = rownames(comp_emo_df1[-c(1,2),]), bty = "n", pch=20 , col=colors_in , text.col = "grey", cex=1.2, pt.cex=3)
+
+radarchart( comp_emo_df2  , axistype=1 , 
+            #custom polygon
+            pcol=colors_border , pfcol=colors_in , plwd=1 , plty=1,
+            #custom the grid
+            cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,20,5), cglwd=0.8,
+            #custom labels
+            vlcex=0.8 
+)
+
+legend(x=0.7, y=1, legend = rownames(comp_emo_df2[-c(1,2),]), bty = "n", pch=20 , col=colors_in , text.col = "grey", cex=1.2, pt.cex=3)
+
+```
+
+
+#### Relevant links used during work (full reference list included in report):
+1. R documentation - get_timeline: https://www.rdocumentation.org/packages/rtweet/versions/0.6.8/topics/get_timeline
+2. Twitter Timeline Guide:
+https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
+3. Search Tweets - Twitter API documentation: https://developer.twitter.com/en/docs/tweets/search/FAQ
+4. Search_tweets from rTweet-library - documentation:  https://www.rdocumentation.org/packages/rtweet/versions/0.6.8/topics/search_tweets
